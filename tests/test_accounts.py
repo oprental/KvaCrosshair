@@ -44,11 +44,11 @@ class AccountTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 401)
 
     def test_subscription_order_and_color_are_server_controlled(self):
-        from subscriptions import activate
+        from subscriptions import activate, create_order_record
         account = self.request('/api/auth/register', dict(username='ProSecurity', password='pro-security-password'))
         token = account['token']
-        with patch('subscriptions.payments_ready', return_value=True):
-            order = self.request('/api/subscription/order', dict(plan='month', amount=1, user_id=999, premium=True), token)
+        with patch('subscriptions.payments_ready', return_value=True), patch('yookassa_payments.create_checkout',side_effect=lambda db,user,plan,email:create_order_record(db,user,plan)):
+            order = self.request('/api/subscription/order', dict(plan='month',provider='yookassa',email='buyer@example.com', amount=1, user_id=999, premium=True), token)
         self.assertEqual(order['amount'], 100)
         self.assertFalse(self.request('/api/auth/me', token=token)['user']['premium'])
         for path, payload, status in [('/api/subscription/color', {'color':'#ff81bd'},403), ('/api/subscription/activate', {'code':order['code']},404)]:

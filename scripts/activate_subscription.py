@@ -1,4 +1,4 @@
-"""Run on the VPS only after checking the payment in DonatePay."""
+"""Run on the VPS only after independently verifying the payment in YooKassa."""
 import argparse
 import sys
 from pathlib import Path

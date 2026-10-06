@@ -1,102 +1,26 @@
-"""Server-owned orders, verified DonatePay payments and subscription periods."""
+"""Server-owned subscription orders and periods; payments use YooKassa."""
 from contextlib import closing
 from datetime import datetime, timezone
 import calendar
 import secrets
 import sqlite3
 import time
-from pathlib import Path
-import hashlib
-import json
-import re
-import threading
-import urllib.request
-from urllib.parse import urlencode
-from decimal import Decimal, InvalidOperation
 
 PLANS = {'month': (100, 1, '30 дней'), 'quarter': (250, 3, '3 месяца'),
          'half': (500, 6, '6 месяцев'), 'year': (900, 12, 'Год')}
 COLORS = ['#ffca72', '#b693ff', '#ff81bd', '#65f7a5', '#ffffff']
-PAY_URL = 'https://donatepay.ru/don/1536419'
 
 
 def payments_ready(database):
     import yookassa_payments
-    if yookassa_payments.configured(database):
-        return yookassa_payments.ready(database)
-    folder = Path(database).parent
-    try:
-        ready = json.loads((folder / 'payments-ready.json').read_text())
-        key_hash = hashlib.sha256((folder / 'donatepay.key').read_bytes().strip()).hexdigest()
-        return ready['key_hash'] == key_hash and time.time() - ready['checked'] < 300
-    except (OSError, ValueError, KeyError, TypeError):
-        return False
-
-
-def process_payment(database, transaction):
-    if not isinstance(transaction, dict) or transaction.get('type') != 'donation' or transaction.get('status') != 'success' or transaction.get('test'):
-        return False
-    variables = transaction.get('vars', {})
-    if not isinstance(variables, dict):
-        return False
-    comment = variables.get('comment', transaction.get('comment', ''))
-    if not isinstance(comment, str):
-        return False
-    codes = re.findall(r'(?<![A-Z0-9])KVA-[A-F0-9]{16}(?![A-Z0-9])', comment.upper())
-    if len(set(codes)) != 1:
-        return False
-    currency = transaction.get('currency', variables.get('currency', 'RUB'))
-    if str(currency).upper() not in ('RUB', 'RUR'):
-        return False
-    try:
-        amount = Decimal(str(transaction.get('sum', variables.get('sum'))))
-        if not amount.is_finite() or amount != amount.to_integral_value():
-            return False
-        payment_id = transaction.get('id')
-        if type(payment_id) not in (int, str):
-            return False
-        activate(database, codes[0], 'donatepay:' + str(payment_id), int(amount))
-        return True
-    except (ValueError, InvalidOperation):
-        return False
-
-
-class NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs):
-        raise ValueError('Payment API redirect rejected')
+    return yookassa_payments.ready(database)
 
 
 def start_worker(database):
     import yookassa_payments
-    if yookassa_payments.configured(database):
-        return yookassa_payments.start_worker(database)
-    folder = Path(database).parent
-    if not (folder / 'donatepay.key').exists():
+    if not yookassa_payments.configured(database):
         return None
-    stop = threading.Event()
-    def work():
-        opener = urllib.request.build_opener(NoRedirect())
-        while not stop.is_set():
-            try:
-                key = (folder / 'donatepay.key').read_text().strip()
-                url = 'https://donatepay.ru/api/v1/transactions?' + urlencode(dict(access_token=key, type='donation', order='DESC', limit=100))
-                with opener.open(url, timeout=20) as response:
-                    raw = response.read(2_000_001)
-                if len(raw) > 2_000_000:
-                    raise ValueError('Payment response too large')
-                result = json.loads(raw)
-                if result.get('status') != 'success' or not isinstance(result.get('data'), list):
-                    raise ValueError('Payment API unavailable')
-                for transaction in result['data']:
-                    process_payment(database, transaction)
-                ready = dict(key_hash=hashlib.sha256(key.encode()).hexdigest(), checked=time.time())
-                (folder / 'payments-ready.json').write_text(json.dumps(ready))
-            except Exception:
-                # Never log exception URLs: the provider uses a query API key.
-                pass
-            stop.wait(90)
-    threading.Thread(target=work, name='payments', daemon=True).start()
-    return stop
+    return yookassa_payments.start_worker(database)
 
 
 def migrate(db):
@@ -116,10 +40,7 @@ def enrich(db, user):
 
 def create_order(database, user, plan, email=None):
     import yookassa_payments
-    if yookassa_payments.configured(database):
-        return yookassa_payments.create_checkout(database,user,plan,email)
-    result=create_order_record(database,user,plan)
-    return dict(result,url=PAY_URL,provider='donatepay',activation='automatic')
+    return yookassa_payments.create_checkout(database,user,plan,email)
 
 
 def create_order_record(database, user, plan, reuse=True):

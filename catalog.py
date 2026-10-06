@@ -391,7 +391,7 @@ class CatalogPanel:
                 if endpoint == '/api/auth/me':
                     self.refresh()
             elif endpoint == '/api/subscription/plans':
-                self.payment_provider = result.get('provider','donatepay')
+                self.payment_provider = result.get('provider','yookassa')
                 for button in self.plan_buttons.values():
                     button.configure(state='normal' if result['enabled'] else 'disabled')
                 self.subscription_status.configure(text='Укажи email для чека и выбери срок. Затем открой страницу ЮKassa. Подписка активируется после подтверждения оплаты.' if result['enabled'] else 'Оплата временно недоступна. Попробуй позже.')

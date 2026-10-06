@@ -73,8 +73,8 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
         def do_GET(self):
             if self.path == '/api/subscription/plans':
                 self.reply(200, {'plans': [dict(id=key, amount=value[0], period=value[2]) for key,value in subscriptions.PLANS.items()],
-                    'enabled': subscriptions.payments_ready(database), 'provider': 'yookassa' if yookassa_payments.configured(database) else 'donatepay',
-                    'email_required': yookassa_payments.configured(database)})
+                    'enabled': subscriptions.payments_ready(database), 'provider': 'yookassa',
+                    'email_required': True})
                 return
             if self.path == '/api/auth/me':
                 user = get_user(database, self.headers.get('Authorization', ''))
@@ -255,7 +255,7 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
                 if not isinstance(payload, dict):
                     raise ValueError('Некорректный запрос')
                 if self.path.endswith('/order'):
-                    if yookassa_payments.configured(database) and payload.get('provider') != 'yookassa':
+                    if payload.get('provider') != 'yookassa':
                         self.reply(426, {'error':'Обнови приложение: оплата теперь проходит через ЮKassa.'})
                         return
                     if not subscriptions.payments_ready(database):
