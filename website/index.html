@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c0b10">
+  <meta name="description" content="Crosshair KVA — бесплатный прицел для Windows. Настрой форму и цвет, добавь своё изображение и найди прицелы сообщества в общем каталоге.">
+  <meta property="og:title" content="Crosshair KVA — твой прицел, твои правила"><meta property="og:description" content="Точка, крест или что-то своё. Бесплатное приложение для Windows с общим каталогом прицелов."><meta property="og:type" content="website"><meta property="og:url" content="https://kvacrosshair.online/"><meta property="og:image" content="https://kvacrosshair.online/icon.png">
+  <link rel="canonical" href="https://kvacrosshair.online/">
+  <title>Crosshair KVA — твой прицел, твои правила</title>
+  <link rel="stylesheet" href="/style.css"><link rel="icon" href="/icon.ico" sizes="any">
+</head>
+<body>
+  <header class="nav wrap"><a class="brand" href="#"><img src="/icon.png" width="30" height="30" alt="">crosshair <span>KVA</span></a><nav aria-label="Основная навигация"><a href="#features">Возможности</a><a href="#catalog">Каталог</a><a class="nav-download" href="/downloads/CrosshairKVA.exe" download>Скачать <span>↗</span></a></nav></header>
+  <main>
+    <section class="hero wrap">
+      <div class="hero-copy"><p class="eyebrow"><span class="live-dot"></span> ТВОЙ ФОКУС. ТВОЙ СТИЛЬ.</p><h1>Всё начинается<br>с <span>прицела.</span></h1><p class="intro">Точка, крест или что-то своё. Создай прицел под себя, держи его в центре экрана и делись с другими.</p><div class="hero-actions"><a class="button primary" href="/downloads/CrosshairKVA.exe" download>Скачать для Windows <span>↓</span></a><a class="text-link" href="#features">Что внутри ↘</a></div><p class="download-note">Бесплатно · v0.8.1 · Один EXE</p><div class="key-note"><kbd>F8</kbd> прицел <span>·</span> <kbd>F9</kbd> настройки</div></div>
+      <div class="demo tile">
+        <div class="demo-header"><span class="eyebrow">ПОПРОБУЙ ПРЯМО ЗДЕСЬ</span><span class="preview-label"><span class="live-dot"></span> PREVIEW</span></div>
+        <div class="demo-stage"><div class="orbit"></div><div class="orbit outer"></div><canvas id="demo-canvas" width="600" height="320" aria-label="Предпросмотр выбранного прицела"></canvas><span>Только твой фокус.</span></div>
+        <div class="demo-controls"><div class="style-buttons" role="group" aria-label="Форма прицела"><button type="button" data-style="cross" aria-pressed="true">Крест</button><button type="button" data-style="dot" aria-pressed="false">Точка</button><button type="button" data-style="ring" aria-pressed="false">Круг</button></div><div class="colors" role="group" aria-label="Цвет"><button type="button" class="swatch violet" data-color="#b69aff" aria-label="Фиолетовый" aria-pressed="true"></button><button type="button" class="swatch mint" data-color="#8bf1c5" aria-label="Мятный" aria-pressed="false"></button><button type="button" class="swatch white" data-color="#ffffff" aria-label="Белый" aria-pressed="false"></button></div></div>
+        <label class="size-control" for="demo-size">Размер <input id="demo-size" type="range" min="8" max="32" value="18"><output id="demo-size-value" for="demo-size">18</output></label><p class="demo-note">Это демо. Все настройки — в приложении.</p>
+      </div>
+    </section>
+    <div class="wrap quick-facts"><span>⊹ Свои изображения</span><span>◎ Онлайн-каталог</span><span><kbd>F8</kbd> Включить прицел</span><span><kbd>F9</kbd> Скрыть настройки</span></div>
+    <section id="features" class="wrap section"><div class="section-heading"><p class="eyebrow">МАЛЕНЬКАЯ ДЕТАЛЬ. МНОГО ВОЗМОЖНОСТЕЙ.</p><h2>Всё нужное.<br><span class="muted">Ничего лишнего.</span></h2></div>
+      <div class="bento-grid">
+        <article class="tile editor-tile"><div class="tile-copy"><span class="tile-number">01 / НАСТРОЙКА</span><h3>Собери свой стиль.</h3><p>Цвет, размер, толщина, зазор и прозрачность. Обводка, центральная точка и смещение — всё с живым предпросмотром.</p></div><div class="app-preview"><img src="/app.png" width="860" height="760" loading="lazy" alt="Настройки прицела в фиолетовом интерфейсе Crosshair KVA"></div></article>
+        <article class="tile image-tile"><span class="tile-number">02 / КОНСТРУКТОР</span><div class="custom-visual" aria-hidden="true">✦ <span>⊹</span> ✧</div><h3>Преврати прицел в персонажа.</h3><p>Кисть, ластик, заливка и фигуры прямо в приложении. Нарисуй своё, начни с кота или призрака, добавь картинку и сохрани прозрачный PNG.</p><div class="format-tags"><span>РИСУЙ</span><span>PNG</span><span>ДЕЛИСЬ</span></div></article>
+        <article class="tile hotkey-tile"><span class="tile-number">03 / ОДНО НАЖАТИЕ</span><div class="big-key" aria-hidden="true">F8</div><h3>Включай, когда нужно.</h3><p>F8 показывает и скрывает прицел. F9 убирает окно настроек, чтобы вернуться к игре. Оверлей пропускает клики.</p></article>
+        <article class="tile profiles-tile"><span class="tile-number">04 / ПРОФИЛИ</span><div class="profile-stack" aria-hidden="true"><div>● Мой основной <span>✓</span></div><div>● Минимализм <span>⊹</span></div><div>● Новый стиль <span>+</span></div></div><h3>Настроил. Сохранил.</h3><p>Переключайся между профилями. Настройки сохраняются автоматически, прицелы можно экспортировать в файл.</p></article>
+        <article class="tile community-tile"><div><span class="tile-number">05 / СООБЩЕСТВО</span><h3>Нашёл идеальный?<br>Поделись.</h3><p>Общий каталог прямо в приложении: ищи, устанавливай и публикуй свои прицелы. Просмотр и скачивание — без аккаунта. Регистрация нужна только для публикации.</p><a class="text-link" href="#catalog">Посмотреть прицелы ↗</a></div><div class="community-art" aria-hidden="true"><span>+</span><span>◎</span><span>⊹</span><span>·</span></div></article>
+      </div>
+    </section>
+    <section id="catalog" class="wrap section"><div class="catalog-heading"><div><p class="eyebrow">СОЗДАНО СООБЩЕСТВОМ</p><h2>Найди свой <span class="muted">фокус.</span></h2></div><p>Последние прицелы из общего каталога.<br>Устанавливай их во вкладке «Каталог» в приложении.</p></div><div id="catalog-grid" class="catalog-grid" aria-live="polite"><p class="catalog-message">Загружаем прицелы…</p></div></section>
+    <section class="wrap section getting-started"><div><p class="eyebrow">ОТ СКАЧИВАНИЯ ДО ПЕРВОГО ПРИЦЕЛА</p><h2>Начни за минуту.</h2></div><ol><li><span>01</span><div><h3>Скачай и запусти.</h3><p>Один EXE для Windows. Устанавливать Python не нужно.</p></div></li><li><span>02</span><div><h3>Настрой под себя.</h3><p>Создай прицел, импортируй изображение или выбери готовый из каталога.</p></div></li><li><span>03</span><div><h3>Нажми F8.</h3><p>Для отображения поверх игры включи оконный режим без рамки.</p></div></li></ol></section>
+    <section id="faq" class="wrap section faq"><h2>Есть вопросы?</h2><details><summary>Приложение бесплатное?</summary><p>Да. Настройки, импорт собственных изображений и общий каталог доступны бесплатно.</p></details><details><summary>Нужна ли регистрация?</summary><p>Настраивай, просматривай и устанавливай прицелы без аккаунта. Регистрация нужна только для публикации в общем каталоге.</p></details><details><summary>Нужно ли устанавливать Python?</summary><p>Нет. В EXE уже включено всё необходимое для запуска. Профили сохраняются автоматически.</p></details><details><summary>Как добавить своё изображение?</summary><p>Нажми «Импорт прицела» в настройках. Для аккуратного результата используй PNG с прозрачным фоном.</p></details><details><summary>Почему прицел не виден в игре?</summary><p>Нажми F8 и переключи игру в оконный режим без рамки. Прицел — обычный оверлей Windows: в эксклюзивном полноэкранном режиме он может не отображаться.</p></details><details><summary>Как поделиться прицелом?</summary><p>Открой «Каталог», войди или зарегистрируйся и нажми «Опубликовать текущий». Можно также экспортировать файл .kvacrosshair и передать его другу.</p></details></section>
+    <section id="pro" class="wrap section" aria-labelledby="pro-title">
+      <p class="eyebrow">БОЛЬШЕ ВОЗМОЖНОСТЕЙ ДЛЯ ТВОИХ ИДЕЙ</p>
+      <h2 id="pro-title">KVA <span class="muted">PRO.</span></h2>
+      <p class="pro-description">Подписка для тех, кто хочет превратить любимого персонажа в свой прицел. Нейросети помогают убрать фон и получить аккуратный линейный рисунок, а цветной ник выделяет автора в общем каталоге.</p>
+      <div class="pro-features">
+        <article><span class="pro-mark" aria-hidden="true">✦</span><h3>Ник в твоём цвете</h3><p>Выбери цвет ника из палитры. В каталоге рядом с именем появится звезда PRO — на твоих опубликованных прицелах.</p></article>
+        <article><span class="pro-mark" aria-hidden="true">◌</span><h3>Персонаж без фона</h3><p>Импортируй изображение в конструктор и вырежи персонажа нейросетью. Настрой очистку фона или добавь цветную обводку.</p></article>
+        <article><span class="pro-mark" aria-hidden="true">〰</span><h3>Нейросетевой аниме-лайн</h3><p>Создавай контурный рисунок с линиями лица, волос и одежды. Выбирай цвет, толщину и количество деталей; дорабатывай результат кистью и ластиком.</p></article>
+      </div>
+      <p class="pro-description">Изображения обрабатываются на твоём компьютере. Модели скачиваются один раз: около 168 МБ для удаления фона и 183 МБ для аниме-линий. Качество зависит от исходной картинки; изменения можно отменить.</p>
+      <div class="pro-plans" aria-label="Тарифы подписки">
+        <article><h3>30 дней</h3><strong>100 ₽</strong><p>Попробуй PRO</p></article>
+        <article><h3>3 месяца</h3><strong>250 ₽</strong><p>Для новых идей</p></article>
+        <article><h3>6 месяцев</h3><strong>500 ₽</strong><p>Для своей коллекции</p></article>
+        <article><h3>1 год</h3><strong>900 ₽</strong><p>Для постоянного творчества</p></article>
+      </div>
+      <p class="pro-description">Базовые функции остаются бесплатными: обычные прицелы, конструктор, PNG/GIF и общий каталог. PRO нужен для обработки персонажей и цвета ника.</p>
+    </section>
+    <section class="wrap final-cta"><div><p class="eyebrow">СДЕЛАЙ ЕГО СВОИМ</p><h2>Твой экран.<br><span>Твой прицел.</span></h2></div><a class="button primary" href="/downloads/CrosshairKVA.exe" download>Скачать Crosshair KVA ↓</a></section>
+  </main>
+  <footer class="wrap"><a class="brand" href="#"><img src="/icon.png" width="24" height="24" alt="">crosshair <span>KVA</span></a><span>Windows · v0.8.1 · Бесплатно</span><a href="/downloads/SHA256.txt">SHA-256 файла ↗</a></footer>
+  <script src="/demo.js" defer></script><script src="/catalog.js" defer></script>
+</body>
+</html>
