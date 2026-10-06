@@ -78,7 +78,14 @@ class CatalogPanel:
         self.account_form = ttk.Frame(outer)
         self.subscription_form = ttk.Frame(outer)
         ttk.Label(self.subscription_form, text='KVA PRO · Цвет ника и обработка персонажей', font=('Segoe UI', 12, 'bold')).pack(anchor='w')
-        ttk.Label(self.subscription_form, text='Вырезание персонажа, обводка и контурный рисунок с деталями. Оплата через DonatePay, без автоматических списаний.', foreground=MUTED, wraplength=730).pack(anchor='w', pady=(4, 8))
+        ttk.Label(self.subscription_form, text='Вырезание персонажа, обводка и нейросетевой аниме-лайн. Оплата через ЮKassa, без автоматических списаний.', foreground=MUTED, wraplength=730).pack(anchor='w', pady=(4, 8))
+        self.payment_provider = 'yookassa'
+        self.payment_url = ''
+        self.receipt_email = tk.StringVar()
+        email_row = ttk.Frame(self.subscription_form)
+        email_row.pack(fill='x', pady=(0, 8))
+        ttk.Label(email_row, text='Email для чека:').pack(side='left', padx=(0, 8))
+        ttk.Entry(email_row, textvariable=self.receipt_email).pack(side='left', fill='x', expand=True)
         plans = ttk.Frame(self.subscription_form)
         plans.pack(fill='x')
         self.plan_buttons = {}
@@ -379,16 +386,20 @@ class CatalogPanel:
                     if endpoint != '/api/auth/me':
                         self.account_action()
                 self.status.configure(text=str(error))
+                if endpoint.startswith('/api/subscription/'):
+                    self.subscription_status.configure(text=str(error))
                 if endpoint == '/api/auth/me':
                     self.refresh()
             elif endpoint == '/api/subscription/plans':
+                self.payment_provider = result.get('provider','donatepay')
                 for button in self.plan_buttons.values():
                     button.configure(state='normal' if result['enabled'] else 'disabled')
-                self.subscription_status.configure(text='Выбери срок. В комментарии платежа укажи код заказа. После подтверждения платежа подписка включится автоматически.' if result['enabled'] else 'Оплата временно недоступна. Попробуй позже.')
+                self.subscription_status.configure(text='Укажи email для чека и выбери срок. Затем открой страницу ЮKassa. Подписка активируется после подтверждения оплаты.' if result['enabled'] else 'Оплата временно недоступна. Попробуй позже.')
             elif endpoint == '/api/subscription/order':
                 self.order_code.set(result['code'])
+                self.payment_url = result.get('url','')
                 self.next_subscription_check = time.monotonic() + 30
-                self.subscription_status.configure(text=f'Оплати {result["amount"]} ₽ за {result["period"]}. Скопируй код ниже в комментарий платежа DonatePay. Затем нажми «Проверить подписку». Активация обычно занимает до 2 минут.')
+                self.subscription_status.configure(text=f'{result["amount"]} ₽ за {result["period"]}. Нажми «Перейти к оплате»: сумма и аккаунт уже привязаны к заказу. После оплаты PRO включится автоматически.')
             elif endpoint in ('/api/auth/register', '/api/auth/login', '/api/auth/me', '/api/subscription/color'):
                 if origin == self.url.get().strip().rstrip('/'):
                     if endpoint in ('/api/auth/register', '/api/auth/login'):
@@ -407,7 +418,7 @@ class CatalogPanel:
                         expires = time.strftime('%d.%m.%Y', time.localtime(result['user']['premium_until']))
                         self.subscription_status.configure(text='KVA PRO активна до '+expires+'. Цвет ника и обработка изображений доступны.')
                     elif self.subscription_form.winfo_ismapped() and self.order_code.get():
-                        self.subscription_status.configure(text='Платёж пока не подтверждён. Проверь сумму и код в комментарии; повтори проверку через 1–2 минуты.')
+                        self.subscription_status.configure(text='Платёж пока не подтверждён. Заверши оплату на странице ЮKassa и повтори проверку через несколько секунд.')
                     try:
                         session_store.save(self.app.data, origin, self.token)
                     except OSError:
@@ -438,7 +449,7 @@ class CatalogPanel:
                 self.status.configure(text=f'Загружено прицелов: {len(result)}. Показаны последние публикации.')
             else:
                 self.status.configure(text='Прицел опубликован. Открой онлайн-каталог и нажми «Обновить».')
-        if self.subscription_form.winfo_ismapped() and self.order_code.get() and self.token and not self.premium and not self.busy and time.monotonic() >= self.next_subscription_check:
+        if self.subscription_form.winfo_ismapped() and self.order_code.get() and self.token and not self.busy and time.monotonic() >= self.next_subscription_check:
             self.next_subscription_check = time.monotonic() + 30
             self.request('GET', '/api/auth/me')
         self.window.after(100, self.poll)
@@ -454,7 +465,16 @@ class CatalogPanel:
         if not self.token:
             self.account_action()
             return
-        self.request('POST', '/api/subscription/order', {'plan': plan})
+        if self.payment_provider != 'yookassa':
+            self.subscription_status.configure(text='Оплата через ЮKassa пока не подключена к серверу.')
+            return
+        from yookassa_payments import receipt_email
+        try:
+            email=receipt_email(self.receipt_email.get())
+        except ValueError as error:
+            self.subscription_status.configure(text=str(error))
+            return
+        self.request('POST', '/api/subscription/order', {'plan':plan,'email':email,'provider':'yookassa'})
 
     def copy_order(self):
         if self.order_code.get():
@@ -462,9 +482,12 @@ class CatalogPanel:
             self.window.clipboard_append(self.order_code.get())
 
     def open_payment(self):
-        if self.order_code.get():
-            self.copy_order()
-            webbrowser.open('https://donatepay.ru/don/1536419')
+        if self.order_code.get() and self.payment_url:
+            from yookassa_payments import confirmation_url
+            try:
+                webbrowser.open(confirmation_url(self.payment_url))
+            except ValueError as error:
+                self.subscription_status.configure(text=str(error))
 
     def check_subscription(self):
         if not self.busy:

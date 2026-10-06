@@ -12,7 +12,7 @@ import threading
 import urllib.request
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-VERSION = '0.8.1'
+VERSION = '0.9.0'
 ORIGIN = 'https://kvacrosshair.online'
 PUBLIC_KEY = bytes.fromhex('2730eb5513f11ade7b919c8668fa2c5fe62ff867b8d1a78a423325e55081d691')
 MAX_SIZE = 128 * 1024 * 1024

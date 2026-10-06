@@ -21,6 +21,9 @@ PAY_URL = 'https://donatepay.ru/don/1536419'
 
 
 def payments_ready(database):
+    import yookassa_payments
+    if yookassa_payments.configured(database):
+        return yookassa_payments.ready(database)
     folder = Path(database).parent
     try:
         ready = json.loads((folder / 'payments-ready.json').read_text())
@@ -64,6 +67,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def start_worker(database):
+    import yookassa_payments
+    if yookassa_payments.configured(database):
+        return yookassa_payments.start_worker(database)
     folder = Path(database).parent
     if not (folder / 'donatepay.key').exists():
         return None
@@ -99,6 +105,8 @@ def migrate(db):
         if name not in columns:
             db.execute(f'ALTER TABLE users ADD COLUMN {name} {definition}')
     db.execute('CREATE TABLE IF NOT EXISTS subscription_orders (code TEXT PRIMARY KEY, user_id INTEGER NOT NULL, plan TEXT NOT NULL, amount INTEGER NOT NULL, created REAL NOT NULL, activated REAL, payment_id TEXT UNIQUE)')
+    import yookassa_payments
+    yookassa_payments.migrate(db)
 
 
 def enrich(db, user):
@@ -106,17 +114,25 @@ def enrich(db, user):
     return dict(user, premium=until > time.time(), premium_until=until, nick_color=color if color in COLORS else COLORS[0])
 
 
-def create_order(database, user, plan):
+def create_order(database, user, plan, email=None):
+    import yookassa_payments
+    if yookassa_payments.configured(database):
+        return yookassa_payments.create_checkout(database,user,plan,email)
+    result=create_order_record(database,user,plan)
+    return dict(result,url=PAY_URL,provider='donatepay',activation='automatic')
+
+
+def create_order_record(database, user, plan, reuse=True):
     if not isinstance(plan, str) or plan not in PLANS:
         raise ValueError('Неизвестный тариф')
     code = 'KVA-' + secrets.token_hex(8).upper()
     with closing(sqlite3.connect(database)) as db, db:
         pending = db.execute('SELECT code FROM subscription_orders WHERE user_id=? AND plan=? AND activated IS NULL AND created>? ORDER BY created DESC LIMIT 1', (user['id'], plan, time.time() - 86400)).fetchone()
-        if pending:
+        if pending and reuse:
             code = pending[0]
         else:
             db.execute('INSERT INTO subscription_orders(code,user_id,plan,amount,created) VALUES (?,?,?,?,?)', (code, user['id'], plan, PLANS[plan][0], time.time()))
-    return dict(code=code, amount=PLANS[plan][0], period=PLANS[plan][2], url=PAY_URL, activation='automatic')
+    return dict(code=code, amount=PLANS[plan][0], period=PLANS[plan][2])
 
 
 def activate(database, code, payment_id, amount):

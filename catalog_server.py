@@ -11,6 +11,7 @@ from pathlib import Path
 from sharing import validate, MAX_PACKAGE
 from accounts import migrate, authenticate, get_user, logout, AccountError
 import subscriptions
+import yookassa_payments
 
 
 class BoundedHTTPServer(ThreadingHTTPServer):
@@ -57,6 +58,7 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
     auth_slots = threading.BoundedSemaphore(2)
     upload_slots = threading.BoundedSemaphore(2)
     read_slots = threading.BoundedSemaphore(2)
+    payment_slots = threading.BoundedSemaphore(2)
 
     class Handler(BaseHTTPRequestHandler):
         def reply(self, status, value):
@@ -70,10 +72,18 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
 
         def do_GET(self):
             if self.path == '/api/subscription/plans':
-                self.reply(200, {'plans': [dict(id=key, amount=value[0], period=value[2]) for key,value in subscriptions.PLANS.items()], 'enabled': subscriptions.payments_ready(database)})
+                self.reply(200, {'plans': [dict(id=key, amount=value[0], period=value[2]) for key,value in subscriptions.PLANS.items()],
+                    'enabled': subscriptions.payments_ready(database), 'provider': 'yookassa' if yookassa_payments.configured(database) else 'donatepay',
+                    'email_required': yookassa_payments.configured(database)})
                 return
             if self.path == '/api/auth/me':
                 user = get_user(database, self.headers.get('Authorization', ''))
+                if user and yookassa_payments.configured(database) and payment_slots.acquire(blocking=False):
+                    try:
+                        yookassa_payments.refresh_user(database,user['id'])
+                        user = get_user(database,self.headers.get('Authorization',''))
+                    finally:
+                        payment_slots.release()
                 self.reply(200 if user else 401, {'user': user} if user else {'error': 'Для публикации войди в аккаунт'})
                 return
             if self.path != '/api/crosshairs':
@@ -99,6 +109,29 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
                 read_slots.release()
 
         def do_POST(self):
+            if self.path == '/api/payments/yookassa':
+                if not yookassa_payments.configured(database):
+                    self.reply(404, {'error':'not found'})
+                    return
+                if not payment_slots.acquire(blocking=False):
+                    self.reply(503, {'error':'Проверка оплаты занята.'})
+                    return
+                try:
+                    length=int(self.headers.get('Content-Length','0'))
+                    if not 0 < length <= 65536:
+                        raise ValueError()
+                    payload=json.loads(self.rfile.read(length))
+                    if not isinstance(payload,dict) or payload.get('type')!='notification' or payload.get('event') not in ('payment.succeeded','payment.canceled') or not isinstance(payload.get('object'),dict):
+                        raise ValueError()
+                    yookassa_payments.check_payment(database,payload['object'].get('id'))
+                    self.reply(200, {'ok':True})
+                except yookassa_payments.PaymentError:
+                    self.reply(503, {'error':'Проверка оплаты временно недоступна.'})
+                except (ValueError,TypeError,OSError):
+                    self.reply(400, {'error':'Некорректное уведомление.'})
+                finally:
+                    payment_slots.release()
+                return
             if self.path in ('/api/subscription/order', '/api/subscription/color'):
                 self.handle_subscription()
                 return
@@ -211,6 +244,9 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
             if not user:
                 self.reply(401, {'error': 'Войди в аккаунт для подписки'})
                 return
+            if not payment_slots.acquire(blocking=False):
+                self.reply(503, {'error':'Сервис оплаты занят. Попробуй позже.'})
+                return
             try:
                 length = int(self.headers.get('Content-Length', '0'))
                 if not 0 < length <= 4096:
@@ -219,10 +255,13 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
                 if not isinstance(payload, dict):
                     raise ValueError('Некорректный запрос')
                 if self.path.endswith('/order'):
+                    if yookassa_payments.configured(database) and payload.get('provider') != 'yookassa':
+                        self.reply(426, {'error':'Обнови приложение: оплата теперь проходит через ЮKassa.'})
+                        return
                     if not subscriptions.payments_ready(database):
                         self.reply(503, {'error': 'Оплата временно недоступна. Попробуй позже.'})
                         return
-                    self.reply(201, subscriptions.create_order(database, user, payload.get('plan')))
+                    self.reply(201, subscriptions.create_order(database, user, payload.get('plan'), payload.get('email')))
                 else:
                     if not user['premium']:
                         self.reply(403, {'error': 'Цвет ника доступен с подпиской KVA PRO'})
@@ -233,8 +272,12 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
                     with closing(sqlite3.connect(database)) as db, db:
                         db.execute('UPDATE users SET nick_color=? WHERE id=?', (color, user['id']))
                     self.reply(200, {'user': get_user(database, self.headers.get('Authorization', ''))})
+            except yookassa_payments.PaymentError as error:
+                self.reply(error.status, {'error':str(error)})
             except (ValueError, OSError, TypeError):
                 self.reply(400, {'error': 'Некорректные данные подписки'})
+            finally:
+                payment_slots.release()
 
         def setup(self):
             super().setup()

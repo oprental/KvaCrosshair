@@ -9,10 +9,27 @@
       </div>
       <p class="pro-description">Изображения обрабатываются на твоём компьютере. Модели скачиваются один раз: около 168 МБ для удаления фона и 183 МБ для аниме-линий. Качество зависит от исходной картинки; изменения можно отменить.</p>
       <div class="pro-plans" aria-label="Тарифы подписки">
-        <article><h3>30 дней</h3><strong>100 ₽</strong><p>Попробуй PRO</p></article>
-        <article><h3>3 месяца</h3><strong>250 ₽</strong><p>Для новых идей</p></article>
-        <article><h3>6 месяцев</h3><strong>500 ₽</strong><p>Для своей коллекции</p></article>
-        <article><h3>1 год</h3><strong>900 ₽</strong><p>Для постоянного творчества</p></article>
+        <article><h3>30 дней</h3><strong>100 ₽</strong><p>Попробуй PRO</p><button class="button primary pro-buy" data-plan="month" disabled>Подключить</button></article>
+        <article><h3>3 месяца</h3><strong>250 ₽</strong><p>Для новых идей</p><button class="button primary pro-buy" data-plan="quarter" disabled>Подключить</button></article>
+        <article><h3>6 месяцев</h3><strong>500 ₽</strong><p>Для своей коллекции</p><button class="button primary pro-buy" data-plan="half" disabled>Подключить</button></article>
+        <article><h3>1 год</h3><strong>900 ₽</strong><p>Для постоянного творчества</p><button class="button primary pro-buy" data-plan="year" disabled>Подключить</button></article>
       </div>
       <p class="pro-description">Базовые функции остаются бесплатными: обычные прицелы, конструктор, PNG/GIF и общий каталог. PRO нужен для обработки персонажей и цвета ника.</p>
+      <p class="pro-description">Оплата на защищённой странице ЮKassa. Подписка привязывается к аккаунту Crosshair KVA и активируется после подтверждения платежа. Продление добавляет время к текущему сроку. Автоматических списаний нет.</p>
+      <p id="pro-payment-status" class="pro-description" aria-live="polite">Проверяем доступность оплаты…</p>
+      <p class="pro-description">Чек формируется продавцом через «Мой налог» и передаётся на указанный email. По вопросам оплаты: <a href="mailto:support@kvacrosshair.online">support@kvacrosshair.online</a>.</p>
+      <dialog id="pro-checkout" aria-labelledby="checkout-title">
+        <button id="checkout-close" class="checkout-close" type="button" aria-label="Закрыть">×</button>
+        <h3 id="checkout-title">Подключить KVA PRO</h3>
+        <p id="checkout-plan"></p>
+        <form id="checkout-form">
+          <label>Логин аккаунта Crosshair KVA<input id="checkout-user" name="username" autocomplete="username" minlength="3" maxlength="24" required></label>
+          <label>Пароль<input id="checkout-password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required></label>
+          <label class="checkout-register"><input id="checkout-register" type="checkbox">Создать новый аккаунт</label>
+          <label>Email для передачи чека<input id="checkout-email" name="email" type="email" autocomplete="email" maxlength="254" required></label>
+          <p class="checkout-hint">Используй тот же аккаунт, с которым входишь в приложении. Банковские данные вводятся только на странице ЮKassa.</p>
+          <p id="checkout-error" role="status"></p>
+          <button id="checkout-submit" class="button primary" type="submit">Перейти к оплате</button>
+        </form>
+      </dialog>
     </section>
