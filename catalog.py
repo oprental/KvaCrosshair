@@ -96,10 +96,8 @@ class CatalogPanel:
         self.subscription_status = ttk.Label(self.subscription_form, text='Проверяю доступность оплаты…', foreground=MUTED, wraplength=730)
         self.subscription_status.pack(anchor='w', pady=8)
         self.order_code = tk.StringVar()
-        ttk.Entry(self.subscription_form, textvariable=self.order_code, state='readonly').pack(fill='x')
         payment_actions = ttk.Frame(self.subscription_form)
         payment_actions.pack(fill='x', pady=6)
-        ttk.Button(payment_actions, text='Скопировать код', command=self.copy_order).pack(side='left')
         ttk.Button(payment_actions, text='Перейти к оплате', command=self.open_payment).pack(side='left', padx=5)
         ttk.Button(payment_actions, text='Проверить подписку', command=self.check_subscription).pack(side='left')
         ttk.Button(payment_actions, text='Закрыть', command=self.subscription_form.pack_forget).pack(side='right')
@@ -475,11 +473,6 @@ class CatalogPanel:
             self.subscription_status.configure(text=str(error))
             return
         self.request('POST', '/api/subscription/order', {'plan':plan,'email':email,'provider':'yookassa'})
-
-    def copy_order(self):
-        if self.order_code.get():
-            self.window.clipboard_clear()
-            self.window.clipboard_append(self.order_code.get())
 
     def open_payment(self):
         if self.order_code.get() and self.payment_url:
