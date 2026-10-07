@@ -62,6 +62,40 @@ class BundleTests(unittest.TestCase):
         with closing(sqlite3.connect(self.database)) as db,db:db.execute('UPDATE bundle_codes SET expires=0')
         with self.assertRaises(Exception):bundle.redeem(self.database,dict(code=new))
 
+    def test_optional_link_preserves_paid_and_pending_orders(self):
+        for paid_first in (True,False):
+            vpn=str(uuid.uuid4())
+            bundle.ensure_billing(self.database,dict(vpn_id=vpn))
+            bundle.ensure_billing(self.database,dict(vpn_id=vpn))
+            hidden=bundle.linked_user(self.database,vpn)
+            order=subscriptions.create_order_record(self.database,hidden,'month')
+            payment='optional-'+str(paid_first)
+            if paid_first:paid=subscriptions.activate(self.database,order['code'],payment,100)
+            actual=self.a['user'] if paid_first else self.b['user']
+            linked=bundle.redeem(self.database,dict(vpn_id=vpn,code=bundle.create_code(self.database,actual)['code']))
+            self.assertFalse(linked['shadow'])
+            result=subscriptions.activate(self.database,order['code'],payment,100)
+            self.assertEqual(result['id'],actual['id'])
+            self.assertGreater(result['premium_until'],time.time())
+            if paid_first:self.assertEqual(result['premium_until'],paid['premium_until'])
+            again=subscriptions.activate(self.database,order['code'],payment,100)
+            self.assertEqual(again['premium_until'],result['premium_until'])
+            with closing(sqlite3.connect(self.database)) as db:
+                self.assertEqual(db.execute('SELECT user_id FROM subscription_orders WHERE code=?',(order['code'],)).fetchone()[0],hidden['id'])
+            with patch('yookassa_payments.refresh_user') as refresh:
+                bundle.internal(self.database,'status',dict(vpn_id=vpn))
+                self.assertEqual({c.args[1] for c in refresh.call_args_list},{actual['id'],hidden['id']})
+
+    def test_checkout_creates_hidden_billing_without_registration(self):
+        vpn=str(uuid.uuid4())
+        with patch('yookassa_payments.ready',return_value=True),patch('subscriptions.create_order',side_effect=lambda database,user,plan,email:dict(owner=user['id'],plan=plan)):
+            first=bundle.internal(self.database,'order',dict(vpn_id=vpn,plan='month',email='vpn@example.com'))
+            again=bundle.internal(self.database,'order',dict(vpn_id=vpn,plan='month',email='vpn@example.com'))
+        self.assertEqual(first,again)
+        with closing(sqlite3.connect(self.database)) as db:
+            row=bundle.record(db,first['owner'])
+            self.assertTrue(row['shadow']);self.assertEqual(row['premium_until'],0)
+
     def test_renewal_preserves_vpn_time_without_granting_pro_for_trial(self):
         code=bundle.create_code(self.database,self.a['user'])['code'];baseline=time.time()+45*86400
         linked=bundle.redeem(self.database,dict(code=code,vpn_id=str(uuid.uuid4()),vpn_until=baseline,paid_until=0))

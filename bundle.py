@@ -20,6 +20,8 @@ def trusted(database,key):
     except AccountError:return False
 
 def migrate(db):
+    db.execute('CREATE TABLE IF NOT EXISTS bundle_shadow(user_id INTEGER PRIMARY KEY)')
+    db.execute('CREATE TABLE IF NOT EXISTS bundle_aliases(source_id INTEGER PRIMARY KEY,target_id INTEGER NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS bundle_links(user_id INTEGER PRIMARY KEY,vpn_id TEXT UNIQUE NOT NULL,managed INTEGER NOT NULL DEFAULT 1,revision INTEGER NOT NULL DEFAULT 1,vpn_until REAL NOT NULL DEFAULT 0)')
     if 'vpn_until' not in {r[1] for r in db.execute('PRAGMA table_info(bundle_links)')}:db.execute('ALTER TABLE bundle_links ADD COLUMN vpn_until REAL NOT NULL DEFAULT 0')
     db.execute('CREATE TABLE IF NOT EXISTS bundle_codes(hash TEXT PRIMARY KEY,user_id INTEGER NOT NULL,expires REAL NOT NULL)')
@@ -56,7 +58,15 @@ def redeem(database,payload):
         old=None
         if requested:
             occupied=db.execute('SELECT user_id FROM bundle_links WHERE vpn_id=?',(requested,)).fetchone()
-            if occupied and occupied[0]!=uid:raise AccountError(409,'VPN-аккаунт уже связан с другим аккаунтом KVA.')
+            if occupied and occupied[0]!=uid:
+                source=occupied[0]
+                if not db.execute('SELECT 1 FROM bundle_shadow WHERE user_id=?',(source,)).fetchone():raise AccountError(409,'VPN-аккаунт уже связан с другим аккаунтом KVA.')
+                paid=db.execute('SELECT premium_until FROM users WHERE id=?',(source,)).fetchone()[0]
+                db.execute('UPDATE users SET premium_until=max(premium_until,?) WHERE id=?',(paid,uid))
+                db.execute('UPDATE users SET premium_until=0 WHERE id=?',(source,))
+                db.execute('INSERT INTO bundle_aliases(source_id,target_id) VALUES (?,?)',(source,uid))
+                db.execute('DELETE FROM bundle_outbox WHERE user_id=?',(source,))
+                db.execute('DELETE FROM bundle_links WHERE user_id=?',(source,))
             if link and link[0]!=requested and not link[1]:raise AccountError(409,'KVA уже связан с другим VPN-аккаунтом. Обратись в поддержку.')
             if link and link[0]!=requested:old=link[0]
             db.execute('INSERT INTO bundle_links(user_id,vpn_id,managed,revision) VALUES (?,?,0,1) ON CONFLICT(user_id) DO UPDATE SET vpn_id=excluded.vpn_id,managed=0,revision=bundle_links.revision+1',(uid,requested))
@@ -77,7 +87,26 @@ def redeem(database,payload):
 def record(db,uid):
     row=db.execute('SELECT u.username,u.premium_until,l.vpn_id,l.managed,l.revision FROM users u JOIN bundle_links l ON l.user_id=u.id WHERE u.id=?',(uid,)).fetchone()
     if not row:raise AccountError(409,'Сначала свяжи аккаунт KVA PRO.')
-    return dict(kva_id=uid,username=row[0],premium_until=row[1],vpn_id=row[2],managed=bool(row[3]),revision=row[4])
+    return dict(kva_id=uid,username=row[0],premium_until=row[1],vpn_id=row[2],managed=bool(row[3]),revision=row[4],shadow=bool(db.execute('SELECT 1 FROM bundle_shadow WHERE user_id=?',(uid,)).fetchone()))
+
+def ensure_billing(database,payload):
+    import accounts
+    ident=payload.get('vpn_id')
+    try:
+        if str(uuid.UUID(ident))!=ident:raise ValueError()
+    except (ValueError,TypeError,AttributeError):raise AccountError(400,'Некорректный VPN-аккаунт.')
+    with closing(sqlite3.connect(database)) as db,db:
+        db.execute('BEGIN IMMEDIATE')
+        if db.execute('SELECT 1 FROM bundle_links WHERE vpn_id=?',(ident,)).fetchone():return
+        name='VPN_'+secrets.token_hex(10)
+        while db.execute('SELECT 1 FROM users WHERE username_key=?',(name.casefold(),)).fetchone():name='VPN_'+secrets.token_hex(10)
+        salt=secrets.token_hex(16)
+        hashed=accounts.password_hash(secrets.token_urlsafe(40),salt)
+        uid=db.execute('INSERT INTO users(username,username_key,salt,password_hash,created) VALUES (?,?,?,?,?)',(name,name.casefold(),salt,hashed,time.time())).lastrowid
+        baseline=payload.get('vpn_until',0)
+        if not isinstance(baseline,(int,float)) or isinstance(baseline,bool) or not 0<=baseline<time.time()+10*366*86400:baseline=0
+        db.execute('INSERT INTO bundle_shadow VALUES (?)',(uid,))
+        db.execute('INSERT INTO bundle_links(user_id,vpn_id,managed,vpn_until) VALUES (?,?,0,?)',(uid,ident,baseline))
 
 def linked_user(database,vpn_id):
     with closing(sqlite3.connect(database)) as db:
@@ -87,6 +116,12 @@ def linked_user(database,vpn_id):
 
 def internal(database,action,payload):
     if action=='redeem':return redeem(database,payload)
+    if action=='order':
+        import subscriptions,yookassa_payments
+        if payload.get('plan') not in subscriptions.PLANS:raise AccountError(400,'Неизвестный тариф.')
+        yookassa_payments.receipt_email(payload.get('email'))
+        if not yookassa_payments.ready(database):raise AccountError(503,'Оплата временно недоступна.')
+        ensure_billing(database,payload)
     user=linked_user(database,payload.get('vpn_id'))
     if action=='legacy':
         deadline=payload.get('paid_until')
@@ -102,10 +137,13 @@ def internal(database,action,payload):
         import yookassa_payments
         yookassa_payments.refresh_user(database,user['id'])
         with closing(sqlite3.connect(database)) as db:
+            sources=db.execute('SELECT source_id FROM bundle_aliases WHERE target_id=?',(user['id'],)).fetchall()
+        for source in sources:yookassa_payments.refresh_user(database,source[0])
+        with closing(sqlite3.connect(database)) as db:
             result=record(db,user['id'])
             code=payload.get('code')
             if code:
-                row=db.execute('SELECT p.status FROM subscription_orders o JOIN yookassa_payments p ON p.order_code=o.code WHERE o.user_id=? AND o.code=?',(user['id'],code)).fetchone()
+                row=db.execute('SELECT p.status FROM subscription_orders o JOIN yookassa_payments p ON p.order_code=o.code WHERE (o.user_id=? OR o.user_id IN (SELECT source_id FROM bundle_aliases WHERE target_id=?)) AND o.code=?',(user['id'],user['id'],code)).fetchone()
                 if not row:raise AccountError(404,'Заказ не найден.')
                 result['status']=row[0]
             return result

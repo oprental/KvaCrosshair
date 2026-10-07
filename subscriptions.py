@@ -77,16 +77,18 @@ def activate(database, code, payment_id, amount):
         order = db.execute('SELECT user_id,plan,amount,activated,payment_id FROM subscription_orders WHERE code=?', (code,)).fetchone()
         if not order or amount != order[2]:
             raise ValueError('Заказ не найден или сумма не совпадает')
+        alias=db.execute('SELECT target_id FROM bundle_aliases WHERE source_id=?',(order[0],)).fetchone()
+        beneficiary=alias[0] if alias else order[0]
         if order[3] is not None:
             if order[4] == payment_id:
-                return enrich(db, {'id': order[0]})
+                return enrich(db, {'id': beneficiary})
             raise ValueError('Заказ уже активирован')
         if db.execute('SELECT 1 FROM subscription_orders WHERE payment_id=?', (payment_id,)).fetchone():
             raise ValueError('Этот платёж уже использован')
-        previous = db.execute('SELECT premium_until FROM users WHERE id=?', (order[0],)).fetchone()[0]
+        previous = db.execute('SELECT premium_until FROM users WHERE id=?', (beneficiary,)).fetchone()[0]
         import bundle
         if bundle.configured(database):
-            linked=db.execute('SELECT vpn_until FROM bundle_links WHERE user_id=?',(order[0],)).fetchone()
+            linked=db.execute('SELECT vpn_until FROM bundle_links WHERE user_id=?',(beneficiary,)).fetchone()
             if linked:previous=max(previous,linked[0])
         start = max(time.time(), previous)
         months = PLANS[order[1]][1]
@@ -97,9 +99,9 @@ def activate(database, code, payment_id, amount):
             month = date.year * 12 + date.month - 1 + months
             year, index = divmod(month, 12)
             expires = date.replace(year=year, month=index + 1, day=min(date.day, calendar.monthrange(year, index + 1)[1])).timestamp()
-        db.execute('UPDATE users SET premium_until=? WHERE id=?', (expires, order[0]))
+        db.execute('UPDATE users SET premium_until=? WHERE id=?', (expires, beneficiary))
         db.execute('UPDATE subscription_orders SET activated=?,payment_id=? WHERE code=?', (time.time(), payment_id, code))
         import bundle
         if bundle.configured(database):
-            bundle.schedule(db,order[0])
-        return enrich(db, {'id': order[0]})
+            bundle.schedule(db,beneficiary)
+        return enrich(db, {'id': beneficiary})
