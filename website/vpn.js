@@ -17,7 +17,7 @@ form.addEventListener('submit',async event=>{
     if(!/^[a-f0-9]{24}$/.test(result.code))throw Error('Сервер вернул некорректный код.');
     document.querySelector('#bundle-code').value=result.code;
     document.querySelector('#bundle-bot').href='https://t.me/Kwyjibovpnbot?start=kva_'+result.code;
-    document.querySelector('#bundle-expiry').textContent='Действует 10 минут. Используй код только в своём VPN-приложении или боте.';
+    document.querySelector('#bundle-expiry').textContent='Действует 10 минут. Используй код только в своём приложении или боте.';
     document.querySelector('#bundle-result').hidden=false;error.textContent='';
   }catch(e){error.textContent=e.message;}finally{busy=false;button.disabled=false;}
 });
