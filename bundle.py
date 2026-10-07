@@ -20,6 +20,7 @@ def trusted(database,key):
     except AccountError:return False
 
 def migrate(db):
+    db.execute('CREATE TABLE IF NOT EXISTS bundle_optout(user_id INTEGER PRIMARY KEY)')
     db.execute('CREATE TABLE IF NOT EXISTS bundle_shadow(user_id INTEGER PRIMARY KEY)')
     db.execute('CREATE TABLE IF NOT EXISTS bundle_aliases(source_id INTEGER PRIMARY KEY,target_id INTEGER NOT NULL)')
     db.execute('CREATE TABLE IF NOT EXISTS bundle_links(user_id INTEGER PRIMARY KEY,vpn_id TEXT UNIQUE NOT NULL,managed INTEGER NOT NULL DEFAULT 1,revision INTEGER NOT NULL DEFAULT 1,vpn_until REAL NOT NULL DEFAULT 0)')
@@ -28,6 +29,7 @@ def migrate(db):
     db.execute('CREATE TABLE IF NOT EXISTS bundle_outbox(user_id INTEGER PRIMARY KEY,last_try REAL NOT NULL DEFAULT 0)')
 
 def schedule(db,user_id):
+    if db.execute('SELECT 1 FROM bundle_optout WHERE user_id=?',(user_id,)).fetchone():return
     row=db.execute('SELECT vpn_id FROM bundle_links WHERE user_id=?',(user_id,)).fetchone()
     if not row:
         db.execute('INSERT INTO bundle_links(user_id,vpn_id) VALUES (?,?)',(user_id,str(uuid.uuid4())))
@@ -54,6 +56,7 @@ def redeem(database,payload):
         row=db.execute('SELECT user_id FROM bundle_codes WHERE hash=? AND expires>?',(hashlib.sha256(code.encode()).hexdigest(),time.time())).fetchone()
         if not row:raise AccountError(400,'Код истёк или уже использован. Получи новый код в KVA.')
         uid=row[0]
+        db.execute('DELETE FROM bundle_optout WHERE user_id=?',(uid,))
         link=db.execute('SELECT vpn_id,managed,revision FROM bundle_links WHERE user_id=?',(uid,)).fetchone()
         old=None
         if requested:
@@ -116,6 +119,22 @@ def linked_user(database,vpn_id):
 
 def internal(database,action,payload):
     if action=='redeem':return redeem(database,payload)
+    if action=='detach':
+        ident=payload.get('vpn_id')
+        try:
+            if str(uuid.UUID(ident))!=ident:raise ValueError()
+        except (ValueError,TypeError,AttributeError):raise AccountError(400,'Некорректный VPN-аккаунт.')
+        with closing(sqlite3.connect(database)) as db,db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT user_id FROM bundle_links WHERE vpn_id=?',(ident,)).fetchone()
+            if row:
+                uid=row[0]
+                db.execute('INSERT OR IGNORE INTO bundle_optout VALUES (?)',(uid,))
+                db.execute('DELETE FROM bundle_outbox WHERE user_id=?',(uid,))
+                db.execute('DELETE FROM bundle_links WHERE user_id=?',(uid,))
+                if db.execute('SELECT 1 FROM bundle_shadow WHERE user_id=?',(uid,)).fetchone():
+                    db.execute('UPDATE users SET premium_until=0 WHERE id=?',(uid,))
+            return dict(success=True)
     if action=='order':
         import subscriptions,yookassa_payments
         if payload.get('plan') not in subscriptions.PLANS:raise AccountError(400,'Неизвестный тариф.')
@@ -176,7 +195,7 @@ def sync_once(database):
 def start_worker(database):
     if not configured(database):return None
     with closing(sqlite3.connect(database)) as db,db:
-        for row in db.execute('SELECT id FROM users WHERE premium_until>? AND id NOT IN (SELECT user_id FROM bundle_links)',(time.time(),)).fetchall():schedule(db,row[0])
+        for row in db.execute('SELECT id FROM users WHERE premium_until>? AND id NOT IN (SELECT user_id FROM bundle_links) AND id NOT IN (SELECT user_id FROM bundle_optout)',(time.time(),)).fetchall():schedule(db,row[0])
     stop=threading.Event()
     def work():
         while not stop.is_set():

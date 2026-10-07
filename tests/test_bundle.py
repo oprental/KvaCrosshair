@@ -96,6 +96,24 @@ class BundleTests(unittest.TestCase):
             row=bundle.record(db,first['owner'])
             self.assertTrue(row['shadow']);self.assertEqual(row['premium_until'],0)
 
+    def test_vpn_deletion_preserves_real_pro_and_prevents_automatic_recreation(self):
+        user=self.a['user'];vpn=str(uuid.uuid4())
+        bundle.redeem(self.database,dict(vpn_id=vpn,code=bundle.create_code(self.database,user)['code']))
+        order=subscriptions.create_order_record(self.database,user,'month')
+        paid=subscriptions.activate(self.database,order['code'],'deletion-pro',100)
+        self.assertTrue(bundle.internal(self.database,'detach',dict(vpn_id=vpn))['success'])
+        bundle.internal(self.database,'detach',dict(vpn_id=vpn))
+        with closing(sqlite3.connect(self.database)) as db,db:
+            bundle.schedule(db,user['id'])
+            self.assertEqual(db.execute('SELECT premium_until FROM users WHERE id=?',(user['id'],)).fetchone()[0],paid['premium_until'])
+            self.assertFalse(db.execute('SELECT 1 FROM bundle_links WHERE user_id=?',(user['id'],)).fetchone())
+            self.assertFalse(db.execute('SELECT 1 FROM bundle_outbox WHERE user_id=?',(user['id'],)).fetchone())
+        renewed=subscriptions.create_order_record(self.database,user,'quarter')
+        subscriptions.activate(self.database,renewed['code'],'deletion-renewal',250)
+        with closing(sqlite3.connect(self.database)) as db:self.assertFalse(db.execute('SELECT 1 FROM bundle_links WHERE user_id=?',(user['id'],)).fetchone())
+        explicit=bundle.redeem(self.database,dict(code=bundle.create_code(self.database,user)['code']))
+        self.assertGreater(explicit['premium_until'],paid['premium_until'])
+
     def test_renewal_preserves_vpn_time_without_granting_pro_for_trial(self):
         code=bundle.create_code(self.database,self.a['user'])['code'];baseline=time.time()+45*86400
         linked=bundle.redeem(self.database,dict(code=code,vpn_id=str(uuid.uuid4()),vpn_until=baseline,paid_until=0))
