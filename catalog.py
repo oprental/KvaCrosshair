@@ -9,7 +9,8 @@ import urllib.request
 from urllib.parse import urlsplit
 from urllib.error import HTTPError
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, colorchooser
+from tkinter import ttk, filedialog, messagebox
+from color_picker import ask_color
 from subscriptions import normalize_color, DEFAULT_COLOR
 from PIL import ImageTk
 from sharing import MAX_PACKAGE, pack, validate, install, preview_settings
@@ -511,7 +512,7 @@ class CatalogPanel:
             current=normalize_color(self.nick_color.get().strip())
         except ValueError:
             current=DEFAULT_COLOR
-        color=colorchooser.askcolor(color=current,title='Цвет ника KVA PRO',parent=self.window)[1]
+        color=ask_color(self.window,current,self.author.get() or 'Твой ник')
         if color:
             self.nick_color.set(color)
             self.nick_preview.configure(fg=color)
