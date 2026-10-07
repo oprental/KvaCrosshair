@@ -102,8 +102,12 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
                         if total > 10_000_000:
                             break
                         premium = bool(row[3] and row[3] > time.time())
+                        try:
+                            nick_color=subscriptions.normalize_color(row[4]) if premium else None
+                        except ValueError:
+                            nick_color=subscriptions.DEFAULT_COLOR
                         items.append(dict(json.loads(row[0]), id=row[1], owner_id=row[2], premium=premium,
-                                          nick_color=row[4] if premium and row[4] in subscriptions.COLORS else None))
+                                          nick_color=nick_color))
                 self.reply(200, {'items': items})
             finally:
                 read_slots.release()
@@ -266,9 +270,7 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
                     if not user['premium']:
                         self.reply(403, {'error': 'Цвет ника доступен с подпиской KVA PRO'})
                         return
-                    color = payload.get('color')
-                    if color not in subscriptions.COLORS:
-                        raise ValueError('Неизвестный цвет')
+                    color = subscriptions.normalize_color(payload.get('color'))
                     with closing(sqlite3.connect(database)) as db, db:
                         db.execute('UPDATE users SET nick_color=? WHERE id=?', (color, user['id']))
                     self.reply(200, {'user': get_user(database, self.headers.get('Authorization', ''))})

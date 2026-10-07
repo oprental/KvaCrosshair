@@ -61,9 +61,16 @@ class AccountTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             self.request('/api/subscription/color', {'color':'<script>'}, token)
         self.assertEqual(error.exception.code, 400)
-        user = self.request('/api/subscription/color', {'color':'#ff81bd'}, token)['user']
+        user = self.request('/api/subscription/color', {'color':'#12AbCD'}, token)['user']
         self.assertTrue(user['premium'])
-        self.assertEqual(user['nick_color'], '#ff81bd')
+        self.assertEqual(user['nick_color'], '#12abcd')
+        self.assertEqual(self.request('/api/auth/me',token=token)['user']['nick_color'],'#12abcd')
+        self.request('/api/crosshairs',pack(DEFAULT),token)
+        self.assertEqual(self.request('/api/crosshairs')['items'][0]['nick_color'],'#12abcd')
+        for invalid in [None,123,[],{},'#abc','#12345678','red','#gggggg']:
+            with self.assertRaises(HTTPError) as error:
+                self.request('/api/subscription/color',{'color':invalid},token)
+            self.assertEqual(error.exception.code,400)
 
     def test_only_owner_can_delete_publication(self):
         owner = self.request('/api/auth/register', dict(username='Owner', password='owner-test-password'))

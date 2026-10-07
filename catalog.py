@@ -9,7 +9,8 @@ import urllib.request
 from urllib.parse import urlsplit
 from urllib.error import HTTPError
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, colorchooser
+from subscriptions import normalize_color, DEFAULT_COLOR
 from PIL import ImageTk
 from sharing import MAX_PACKAGE, pack, validate, install, preview_settings
 import session_store
@@ -104,8 +105,12 @@ class CatalogPanel:
         color_row = ttk.Frame(self.subscription_form)
         color_row.pack(fill='x', pady=(0, 8))
         ttk.Label(color_row, text='Цвет ника:').pack(side='left', padx=(0, 8))
-        for color in ('#ffca72', '#b693ff', '#ff81bd', '#65f7a5', '#ffffff'):
-            tk.Button(color_row, bg=color, activebackground=color, width=3, relief='flat', command=lambda value=color: self.set_nick_color(value)).pack(side='left', padx=3)
+        self.nick_color = tk.StringVar(value=DEFAULT_COLOR)
+        self.nick_preview = tk.Label(color_row,text='Твой ник',bg=BG,fg=DEFAULT_COLOR,font=('Segoe UI',10,'bold'))
+        self.nick_preview.pack(side='left',padx=(0,12))
+        ttk.Button(color_row,text='Палитра…',command=self.choose_nick_color).pack(side='left')
+        ttk.Entry(color_row,textvariable=self.nick_color,width=10).pack(side='left',padx=8)
+        ttk.Button(color_row,text='Применить',command=lambda:self.set_nick_color(self.nick_color.get().strip())).pack(side='left')
         self.login_name = tk.StringVar()
         self.login_password = tk.StringVar()
         self.repeat_password = tk.StringVar()
@@ -240,7 +245,11 @@ class CatalogPanel:
             ttk.Label(card, image=photo, style='Card.TLabel').pack()
             ttk.Label(card, text=package['settings']['name'], style='Card.TLabel', font=('Segoe UI', 11, 'bold'), wraplength=190).pack(anchor='w', pady=(8, 3))
             nick_color = package.get('nick_color')
-            if not package.get('premium') or nick_color not in ('#ffca72', '#b693ff', '#ff81bd', '#65f7a5', '#ffffff'):
+            try:
+                nick_color=normalize_color(nick_color)
+            except ValueError:
+                nick_color = MUTED
+            if not package.get('premium'):
                 nick_color = MUTED
             ttk.Label(card, text=(package['author'] or 'Без автора') + (' ★' if package.get('premium') else ''), style='Card.TLabel', foreground=nick_color).pack(anchor='w')
             ttk.Button(card, text='Установить', command=lambda p=package: self.install(p)).pack(fill='x', pady=(12, 0))
@@ -407,6 +416,12 @@ class CatalogPanel:
                     self.author.set(result['user']['username'])
                     self.premium = bool(result['user'].get('premium'))
                     nick_color = result['user'].get('nick_color', '#ffca72')
+                    try:
+                        nick_color=normalize_color(nick_color)
+                    except ValueError:
+                        nick_color=DEFAULT_COLOR
+                    self.nick_color.set(nick_color)
+                    self.nick_preview.configure(fg=nick_color)
                     ttk.Style().configure('Premium.TButton', foreground=nick_color)
                     self.account_button.configure(text=self.author.get()+(' ★' if self.premium else '')+' · Выйти', style='Premium.TButton' if self.premium else 'TButton')
                     self.hide_account_form()
@@ -489,7 +504,24 @@ class CatalogPanel:
             else:
                 self.account_action()
 
+    def choose_nick_color(self):
+        if self.busy:
+            return
+        try:
+            current=normalize_color(self.nick_color.get().strip())
+        except ValueError:
+            current=DEFAULT_COLOR
+        color=colorchooser.askcolor(color=current,title='Цвет ника KVA PRO',parent=self.window)[1]
+        if color:
+            self.nick_color.set(color)
+            self.nick_preview.configure(fg=color)
+
     def set_nick_color(self, color):
+        try:
+            color=normalize_color(color)
+        except ValueError as error:
+            self.subscription_status.configure(text=str(error))
+            return
         if not self.busy:
             if self.token:
                 self.request('POST', '/api/subscription/color', {'color': color})

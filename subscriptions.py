@@ -5,10 +5,17 @@ import calendar
 import secrets
 import sqlite3
 import time
+import re
 
 PLANS = {'month': (100, 1, '30 дней'), 'quarter': (250, 3, '3 месяца'),
          'half': (500, 6, '6 месяцев'), 'year': (900, 12, 'Год')}
-COLORS = ['#ffca72', '#b693ff', '#ff81bd', '#65f7a5', '#ffffff']
+DEFAULT_COLOR = '#ffca72'
+
+
+def normalize_color(value):
+    if not isinstance(value,str) or not re.fullmatch(r'#[0-9a-fA-F]{6}',value):
+        raise ValueError('Укажи цвет в формате #RRGGBB')
+    return value.lower()
 
 
 def payments_ready(database):
@@ -35,7 +42,11 @@ def migrate(db):
 
 def enrich(db, user):
     until, color = db.execute('SELECT premium_until,nick_color FROM users WHERE id=?', (user['id'],)).fetchone()
-    return dict(user, premium=until > time.time(), premium_until=until, nick_color=color if color in COLORS else COLORS[0])
+    try:
+        color=normalize_color(color)
+    except ValueError:
+        color=DEFAULT_COLOR
+    return dict(user, premium=until > time.time(), premium_until=until, nick_color=color)
 
 
 def create_order(database, user, plan, email=None):
