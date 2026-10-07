@@ -12,6 +12,7 @@ from sharing import validate, MAX_PACKAGE
 from accounts import migrate, authenticate, get_user, logout, AccountError
 import subscriptions
 import yookassa_payments
+import bundle
 
 
 class BoundedHTTPServer(ThreadingHTTPServer):
@@ -21,6 +22,8 @@ class BoundedHTTPServer(ThreadingHTTPServer):
     def server_close(self):
         if getattr(self, 'payment_stop', None) is not None:
             self.payment_stop.set()
+        if getattr(self,'bundle_stop',None) is not None:
+            self.bundle_stop.set()
         super().server_close()
 
     def __init__(self, *args, **kwargs):
@@ -113,6 +116,9 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
                 read_slots.release()
 
         def do_POST(self):
+            if self.path=='/api/bundle/code' or self.path.startswith('/api/bundle/internal/'):
+                self.handle_bundle()
+                return
             if self.path == '/api/payments/yookassa':
                 if not yookassa_payments.configured(database):
                     self.reply(404, {'error':'not found'})
@@ -243,6 +249,28 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
             finally:
                 auth_slots.release()
 
+        def handle_bundle(self):
+            if not payment_slots.acquire(blocking=False):
+                self.reply(503,{'error':'Сервис занят. Повтори позже.'})
+                return
+            try:
+                if self.path=='/api/bundle/code':
+                    user=get_user(database,self.headers.get('Authorization',''))
+                    if not user:raise AccountError(401,'Войди в аккаунт KVA.')
+                elif not bundle.trusted(database,self.headers.get('x-bundle-key','')):
+                    raise AccountError(401,'Unauthorized')
+                length=int(self.headers.get('Content-Length','0'))
+                if not 0<length<=4096:raise AccountError(400,'Некорректный запрос.')
+                payload=json.loads(self.rfile.read(length))
+                if not isinstance(payload,dict):raise AccountError(400,'Некорректный запрос.')
+                result=bundle.create_code(database,user) if self.path=='/api/bundle/code' else bundle.internal(database,self.path.rsplit('/',1)[-1],payload)
+                self.reply(200,result)
+            except (AccountError,yookassa_payments.PaymentError) as error:
+                self.reply(error.status,{'error':str(error)})
+            except (ValueError,TypeError,OSError):
+                self.reply(400,{'error':'Некорректные данные общей подписки.'})
+            finally:payment_slots.release()
+
         def handle_subscription(self):
             user = get_user(database, self.headers.get('Authorization', ''))
             if not user:
@@ -287,6 +315,7 @@ def create_server(host='127.0.0.1', port=8765, database='catalog.sqlite3'):
 
     server = BoundedHTTPServer((host, port), Handler)
     server.payment_stop = subscriptions.start_worker(database)
+    server.bundle_stop = bundle.start_worker(database)
     return server
 
 

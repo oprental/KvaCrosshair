@@ -80,7 +80,8 @@ class CatalogPanel:
         self.account_form = ttk.Frame(outer)
         self.subscription_form = ttk.Frame(outer)
         ttk.Label(self.subscription_form, text='KVA PRO · Цвет ника и обработка персонажей', font=('Segoe UI', 12, 'bold')).pack(anchor='w')
-        ttk.Label(self.subscription_form, text='Вырезание персонажа, обводка и нейросетевой аниме-лайн. Оплата через ЮKassa, без автоматических списаний.', foreground=MUTED, wraplength=730).pack(anchor='w', pady=(4, 8))
+        ttk.Label(self.subscription_form, text='Вырезание персонажа, аниме-лайн, цвет ника и Kwyjibo VPN на тот же срок. Оплата через ЮKassa, без автоматических списаний.', foreground=MUTED, wraplength=730).pack(anchor='w', pady=(4, 8))
+        ttk.Button(self.subscription_form,text='VPN: получить код / связать аккаунты',command=lambda:webbrowser.open('https://kvacrosshair.online/vpn.html')).pack(anchor='w',pady=(0,8))
         self.payment_provider = 'yookassa'
         self.payment_url = ''
         self.receipt_email = tk.StringVar()

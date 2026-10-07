@@ -38,6 +38,8 @@ def migrate(db):
     db.execute('CREATE TABLE IF NOT EXISTS subscription_orders (code TEXT PRIMARY KEY, user_id INTEGER NOT NULL, plan TEXT NOT NULL, amount INTEGER NOT NULL, created REAL NOT NULL, activated REAL, payment_id TEXT UNIQUE)')
     import yookassa_payments
     yookassa_payments.migrate(db)
+    import bundle
+    bundle.migrate(db)
 
 
 def enrich(db, user):
@@ -82,6 +84,10 @@ def activate(database, code, payment_id, amount):
         if db.execute('SELECT 1 FROM subscription_orders WHERE payment_id=?', (payment_id,)).fetchone():
             raise ValueError('Этот платёж уже использован')
         previous = db.execute('SELECT premium_until FROM users WHERE id=?', (order[0],)).fetchone()[0]
+        import bundle
+        if bundle.configured(database):
+            linked=db.execute('SELECT vpn_until FROM bundle_links WHERE user_id=?',(order[0],)).fetchone()
+            if linked:previous=max(previous,linked[0])
         start = max(time.time(), previous)
         months = PLANS[order[1]][1]
         if months == 1:
@@ -93,4 +99,7 @@ def activate(database, code, payment_id, amount):
             expires = date.replace(year=year, month=index + 1, day=min(date.day, calendar.monthrange(year, index + 1)[1])).timestamp()
         db.execute('UPDATE users SET premium_until=? WHERE id=?', (expires, order[0]))
         db.execute('UPDATE subscription_orders SET activated=?,payment_id=? WHERE code=?', (time.time(), payment_id, code))
+        import bundle
+        if bundle.configured(database):
+            bundle.schedule(db,order[0])
         return enrich(db, {'id': order[0]})
